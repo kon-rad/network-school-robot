@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: network-school-robot-db
+    environment:
+      POSTGRES_USER: robot_user
+      POSTGRES_PASSWORD: robot_password
+      POSTGRES_DB: network_school_robot
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robot_user -d network_school_robot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

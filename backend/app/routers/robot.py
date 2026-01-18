@@ -24,6 +24,10 @@ class ActionResponse(BaseModel):
     connection_mode: Optional[str] = None
 
 
+class RobotActionRequest(BaseModel):
+    action: str
+
+
 @router.get("/status", response_model=StatusResponse)
 async def get_status():
     """Get current robot connection status and info."""
@@ -52,3 +56,12 @@ async def get_robot_info():
     if not status["connected"]:
         raise HTTPException(status_code=400, detail="Robot not connected")
     return status["robot_info"]
+
+
+@router.post("/action", response_model=ActionResponse)
+async def execute_action(request: RobotActionRequest):
+    """Execute a robot action based on text description."""
+    if not request.action.strip():
+        raise HTTPException(status_code=400, detail="Action cannot be empty")
+    result = await robot_service.execute_action(request.action)
+    return ActionResponse(**result)

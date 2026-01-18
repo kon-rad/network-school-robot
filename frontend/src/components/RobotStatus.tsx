@@ -9,96 +9,131 @@ interface RobotStatusProps {
 export function RobotStatus({ status, loading, error }: RobotStatusProps) {
   if (loading && !status) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Robot Status</h2>
-        <div className="text-gray-400">Loading...</div>
+      <div className="card">
+        <div className="card-body">
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-[var(--text-secondary)]">Loading status...</span>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-4">Robot Status</h2>
-        <div className="text-red-400">Error: {error}</div>
+      <div className="card">
+        <div className="card-body">
+          <div className="flex items-center gap-3 text-[var(--error)]">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-sm">Error: {error}</span>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Robot Status</h2>
-
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <span className="text-gray-400">Connection</span>
-          <span
-            className={`px-3 py-1 rounded-full text-sm ${
-              status?.connected
-                ? 'bg-green-900 text-green-300'
-                : 'bg-red-900 text-red-300'
-            }`}
-          >
-            {status?.connected ? 'Connected' : 'Disconnected'}
+    <div className="card">
+      <div className="card-header">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium text-[var(--text-primary)]">Robot Status</h2>
+          <span className={`badge ${status?.connected ? 'badge-success' : 'badge-warning'}`}>
+            <span className={`status-indicator ${status?.connected ? 'online' : 'warning'}`} />
+            {status?.connected ? 'Online' : 'Offline'}
           </span>
         </div>
+      </div>
 
-        <div className="flex justify-between items-center">
-          <span className="text-gray-400">Mode</span>
-          <span className="text-white">
-            {status?.connection_mode || 'N/A'}
-          </span>
-        </div>
-
-        {status?.last_heartbeat && (
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400">Last Heartbeat</span>
-            <span className="text-white text-sm">
-              {new Date(status.last_heartbeat).toLocaleTimeString()}
+      <div className="card-body space-y-4">
+        {/* Connection Info */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--text-secondary)]">Connection</span>
+            <span className={`text-sm font-medium ${status?.connected ? 'text-[var(--success)]' : 'text-[var(--text-tertiary)]'}`}>
+              {status?.connected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
-        )}
 
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--text-secondary)]">Mode</span>
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              {status?.connection_mode || 'N/A'}
+            </span>
+          </div>
+
+          {status?.last_heartbeat && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-[var(--text-secondary)]">Last Heartbeat</span>
+              <span className="text-sm font-medium text-[var(--text-primary)]">
+                {new Date(status.last_heartbeat).toLocaleTimeString()}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Robot Info */}
         {status?.robot_info && (
           <>
-            <hr className="border-gray-700" />
-            <h3 className="text-lg font-medium">Robot Info</h3>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">Type</span>
-              <span className="text-white capitalize">
-                {status.robot_info.mode}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400">SDK Version</span>
-              <span className="text-white">
-                {status.robot_info.sdk_version}
-              </span>
+            <div className="border-t border-[var(--border-default)] pt-4">
+              <h3 className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Hardware</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--text-secondary)]">Type</span>
+                  <span className="text-sm font-medium text-[var(--text-primary)] capitalize">
+                    {status.robot_info.mode}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--text-secondary)]">SDK Version</span>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    v{status.robot_info.sdk_version}
+                  </span>
+                </div>
+              </div>
             </div>
           </>
         )}
 
-        {status?.imu_data && (
-          <>
-            <hr className="border-gray-700" />
-            <h3 className="text-lg font-medium">IMU Data</h3>
+        {/* IMU Data */}
+        {status?.imu_data && (status.imu_data.accelerometer || status.imu_data.gyroscope) && (
+          <div className="border-t border-[var(--border-default)] pt-4">
+            <h3 className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">IMU Data</h3>
+
             {status.imu_data.accelerometer && (
-              <div>
-                <span className="text-gray-400 text-sm">Accelerometer</span>
-                <div className="text-white text-sm font-mono">
-                  {status.imu_data.accelerometer.map((v) => v.toFixed(2)).join(', ')}
+              <div className="mb-3">
+                <span className="text-xs text-[var(--text-tertiary)]">Accelerometer</span>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {['X', 'Y', 'Z'].map((axis, i) => (
+                    <div key={axis} className="bg-[var(--bg-tertiary)] rounded p-2 text-center">
+                      <div className="text-xs text-[var(--text-tertiary)]">{axis}</div>
+                      <div className="text-sm font-mono text-[var(--text-primary)]">
+                        {status.imu_data!.accelerometer![i].toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
+
             {status.imu_data.gyroscope && (
               <div>
-                <span className="text-gray-400 text-sm">Gyroscope</span>
-                <div className="text-white text-sm font-mono">
-                  {status.imu_data.gyroscope.map((v) => v.toFixed(2)).join(', ')}
+                <span className="text-xs text-[var(--text-tertiary)]">Gyroscope</span>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {['X', 'Y', 'Z'].map((axis, i) => (
+                    <div key={axis} className="bg-[var(--bg-tertiary)] rounded p-2 text-center">
+                      <div className="text-xs text-[var(--text-tertiary)]">{axis}</div>
+                      <div className="text-sm font-mono text-[var(--text-primary)]">
+                        {status.imu_data!.gyroscope![i].toFixed(2)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

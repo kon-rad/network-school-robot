@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .database import init_db
-from .routers import robot_router, logs_router
+from .routers import robot_router, logs_router, chat_router
 from .services.robot_service import robot_service
 
 settings = get_settings()
@@ -35,6 +35,7 @@ app.add_middleware(
 
 app.include_router(robot_router)
 app.include_router(logs_router)
+app.include_router(chat_router)
 
 
 @app.get("/")

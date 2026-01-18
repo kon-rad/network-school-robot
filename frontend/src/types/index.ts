@@ -37,3 +37,31 @@ export interface LogsResponse {
   page: number;
   limit: number;
 }
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  actions?: string[];
+  timestamp: Date;
+}
+
+export interface ChatResponse {
+  response: string;
+  actions: string[];
+}
+
+export interface ChatStatusResponse {
+  configured: boolean;
+  model: string;
+}
+
+export interface HistoryMessage {
+  role: string;
+  content: string;
+}
+
+export interface ChatHistoryResponse {
+  history: HistoryMessage[];
+  configured: boolean;
+}

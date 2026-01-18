@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { chatApi } from '../services/api';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, ActionResult } from '../types';
 
 interface ChatInterfaceProps {
   onAction?: (action: string) => void;
@@ -11,6 +11,7 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
+  const [robotConnected, setRobotConnected] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +31,7 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
     try {
       const status = await chatApi.getStatus();
       setIsConfigured(status.configured);
+      setRobotConnected(status.robot_connected);
     } catch {
       setIsConfigured(false);
     }
@@ -64,27 +66,39 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
 
     try {
       let fullContent = '';
+      let actions: string[] = [];
+      let actionResults: ActionResult[] = [];
 
-      for await (const chunk of chatApi.streamMessage(userMessage.content)) {
-        fullContent += chunk;
-        setStreamingContent(fullContent);
+      for await (const event of chatApi.streamMessage(userMessage.content)) {
+        if (event.content) {
+          fullContent += event.content;
+          setStreamingContent(fullContent);
+        }
+        if (event.actions) {
+          actions = event.actions;
+        }
+        if (event.action_results) {
+          actionResults = event.action_results;
+        }
       }
 
-      const [cleanContent, actions] = extractActions(fullContent);
+      const [cleanContent, extractedActions] = extractActions(fullContent);
+      const finalActions = actions.length > 0 ? actions : extractedActions;
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: cleanContent,
-        actions,
+        actions: finalActions,
+        actionResults: actionResults,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
       setStreamingContent('');
 
-      if (onAction && actions.length > 0) {
-        for (const action of actions) {
+      if (onAction && finalActions.length > 0) {
+        for (const action of finalActions) {
           onAction(action);
         }
       }
@@ -134,7 +148,7 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
           </div>
           <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">Chat Not Configured</h3>
           <p className="text-sm text-[var(--text-secondary)] mb-4">
-            Set the <code className="text-[var(--accent-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-xs">TOGETHER_API_KEY</code> environment variable to enable the chat feature.
+            Set the <code className="text-[var(--accent-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-xs">ANTHROPIC_API_KEY</code> environment variable to enable the chat feature.
           </p>
         </div>
       </div>
@@ -153,7 +167,13 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
           </div>
           <div>
             <h2 className="font-medium text-[var(--text-primary)]">Chat with Reachy</h2>
-            <p className="text-xs text-[var(--text-tertiary)]">AI-powered robot assistant</p>
+            <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
+              <span>Powered by Claude</span>
+              <span className={`inline-flex items-center gap-1 ${robotConnected ? 'text-[var(--success)]' : 'text-[var(--text-tertiary)]'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${robotConnected ? 'bg-[var(--success)]' : 'bg-[var(--text-tertiary)]'}`} />
+                {robotConnected ? 'Robot connected' : 'Robot offline'}
+              </span>
+            </div>
           </div>
         </div>
         {messages.length > 0 && (
@@ -189,13 +209,38 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
           >
             <div className={`message ${message.role === 'user' ? 'message-user' : 'message-assistant'}`}>
               <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              {message.actions && message.actions.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-1.5">
-                  {message.actions.map((action, idx) => (
-                    <span key={idx} className="badge badge-info text-xs">
-                      {action}
-                    </span>
+              {/* Display captured images */}
+              {message.actionResults?.some(r => r.image_base64) && (
+                <div className="mt-3">
+                  {message.actionResults.filter(r => r.image_base64).map((result, idx) => (
+                    <div key={idx} className="rounded-lg overflow-hidden border border-white/10">
+                      <img
+                        src={`data:image/${result.format || 'jpeg'};base64,${result.image_base64}`}
+                        alt="Captured by robot"
+                        className="w-full max-h-64 object-cover"
+                      />
+                    </div>
                   ))}
+                </div>
+              )}
+              {message.actions && message.actions.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-white/10">
+                  <p className="text-xs text-[var(--text-tertiary)] mb-1.5">Actions:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {message.actions.map((action, idx) => {
+                      const result = message.actionResults?.[idx];
+                      const isSuccess = result?.success !== false;
+                      return (
+                        <span
+                          key={idx}
+                          className={`badge text-xs ${isSuccess ? 'badge-success' : 'badge-error'}`}
+                          title={result?.message}
+                        >
+                          {isSuccess ? '✓' : '✗'} {action}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

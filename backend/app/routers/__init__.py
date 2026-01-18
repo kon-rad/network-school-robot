@@ -1,5 +1,6 @@
 from .robot import router as robot_router
 from .logs import router as logs_router
 from .chat import router as chat_router
+from .voice_control import router as voice_control_router
 
-__all__ = ["robot_router", "logs_router", "chat_router"]
+__all__ = ["robot_router", "logs_router", "chat_router", "voice_control_router"]

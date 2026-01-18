@@ -1,4 +1,14 @@
+import { useState, useEffect, useCallback } from 'react';
 import type { RobotStatus as RobotStatusType } from '../types';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+
+interface VoiceTrackingStatus {
+  tracking_enabled: boolean;
+  last_doa: number | null;
+  smoothing_factor: number;
+  min_movement_threshold: number;
+}
 
 interface RobotStatusProps {
   status: RobotStatusType | null;
@@ -7,6 +17,45 @@ interface RobotStatusProps {
 }
 
 export function RobotStatus({ status, loading, error }: RobotStatusProps) {
+  const [voiceTracking, setVoiceTracking] = useState<VoiceTrackingStatus | null>(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+
+  const fetchVoiceTrackingStatus = useCallback(async () => {
+    if (!status?.connected) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/robot/voice-tracking/status`);
+      if (response.ok) {
+        const data = await response.json();
+        setVoiceTracking(data);
+      }
+    } catch {
+      // Ignore errors
+    }
+  }, [status?.connected]);
+
+  useEffect(() => {
+    fetchVoiceTrackingStatus();
+    const interval = setInterval(fetchVoiceTrackingStatus, 2000);
+    return () => clearInterval(interval);
+  }, [fetchVoiceTrackingStatus]);
+
+  const toggleVoiceTracking = async () => {
+    setTrackingLoading(true);
+    try {
+      const endpoint = voiceTracking?.tracking_enabled ? 'stop' : 'start';
+      const response = await fetch(`${API_BASE}/api/robot/voice-tracking/${endpoint}`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        await fetchVoiceTrackingStatus();
+      }
+    } catch (err) {
+      console.error('Failed to toggle voice tracking:', err);
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
+
   if (loading && !status) {
     return (
       <div className="card">
@@ -133,6 +182,53 @@ export function RobotStatus({ status, loading, error }: RobotStatusProps) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Voice Tracking */}
+        {status?.connected && (
+          <div className="border-t border-[var(--border-default)] pt-4">
+            <h3 className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-3">Voice Tracking</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  <span className="text-sm text-[var(--text-secondary)]">Follow Speaker</span>
+                </div>
+                <button
+                  onClick={toggleVoiceTracking}
+                  disabled={trackingLoading}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    voiceTracking?.tracking_enabled
+                      ? 'bg-[var(--accent-primary)]'
+                      : 'bg-[var(--bg-tertiary)]'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      voiceTracking?.tracking_enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {voiceTracking?.tracking_enabled && voiceTracking.last_doa !== null && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--text-secondary)]">Speaker Direction</span>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    {voiceTracking.last_doa.toFixed(1)}°
+                  </span>
+                </div>
+              )}
+
+              <p className="text-xs text-[var(--text-tertiary)]">
+                {voiceTracking?.tracking_enabled
+                  ? 'Robot will turn to face whoever is speaking'
+                  : 'Enable to make robot follow your voice'}
+              </p>
+            </div>
           </div>
         )}
       </div>

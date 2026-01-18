@@ -4,18 +4,20 @@ import { ConnectionIndicator } from './components/ConnectionIndicator';
 import { RobotStatus } from './components/RobotStatus';
 import { LogViewer } from './components/LogViewer';
 import { ChatInterface } from './components/ChatInterface';
+import { CameraView } from './components/CameraView';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useRobotStatus } from './hooks/useRobotStatus';
 
 function App() {
   const { connected: wsConnected, logs, clearLogs } = useWebSocket();
   const { status, loading, error, refetch } = useRobotStatus(5000);
-  const [activeTab, setActiveTab] = useState<'chat' | 'logs'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'camera' | 'logs'>('chat');
 
   const handleRobotAction = async (action: string) => {
     console.log('Executing robot action:', action);
     try {
-      const response = await fetch('http://localhost:8000/api/robot/action', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+      const response = await fetch(`${apiUrl}/api/robot/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -81,6 +83,18 @@ function App() {
                 </span>
               </button>
               <button
+                onClick={() => setActiveTab('camera')}
+                className={`tab ${activeTab === 'camera' ? 'active' : ''}`}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Camera
+                </span>
+              </button>
+              <button
                 onClick={() => setActiveTab('logs')}
                 className={`tab ${activeTab === 'logs' ? 'active' : ''}`}
               >
@@ -88,16 +102,20 @@ function App() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  System Logs
+                  Logs
                 </span>
               </button>
             </div>
 
             {/* Content */}
             <div className="animate-fade-in">
-              {activeTab === 'chat' ? (
+              {activeTab === 'chat' && (
                 <ChatInterface onAction={handleRobotAction} />
-              ) : (
+              )}
+              {activeTab === 'camera' && (
+                <CameraView />
+              )}
+              {activeTab === 'logs' && (
                 <LogViewer logs={logs} onClearLogs={clearLogs} />
               )}
             </div>

@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from typing import Optional, List
+import asyncio
+import json
 from ..services.robot_service import robot_service
 from ..services.voice_tracking_service import voice_tracking_service
+from ..services.video_stream_service import video_stream_service
 
 router = APIRouter(prefix="/api/robot", tags=["robot"])
 
@@ -367,3 +370,84 @@ async def look_at_speaker(request: LookAtSpeakerRequest):
     """
     result = await voice_tracking_service.look_at_speaker(request.doa, request.smooth)
     return ActionResponse(**result)
+
+
+# ==================== VIDEO STREAMING ENDPOINTS ====================
+
+class VideoStreamConfig(BaseModel):
+    target_fps: int = 60
+    quality: int = 60
+    max_width: int = 640
+    max_height: int = 480
+
+
+@router.get("/video-stream/status")
+async def get_video_stream_status():
+    """Get current video stream status."""
+    return video_stream_service.get_status()
+
+
+@router.post("/video-stream/configure")
+async def configure_video_stream(config: VideoStreamConfig):
+    """Configure video stream parameters."""
+    video_stream_service.configure(
+        target_fps=config.target_fps,
+        quality=config.quality,
+        max_width=config.max_width,
+        max_height=config.max_height
+    )
+    return {"success": True, "message": "Stream configured", "config": config.model_dump()}
+
+
+@router.websocket("/video-stream/ws")
+async def video_stream_websocket(websocket: WebSocket):
+    """WebSocket endpoint for video streaming at high FPS."""
+    await websocket.accept()
+
+    # Queue to receive frames
+    frame_queue: asyncio.Queue = asyncio.Queue(maxsize=2)
+
+    async def on_frame(frame_data: dict):
+        """Callback when a frame is captured."""
+        try:
+            # Drop old frames if queue is full (keep latest)
+            if frame_queue.full():
+                try:
+                    frame_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            frame_queue.put_nowait(frame_data)
+        except Exception:
+            pass
+
+    # Subscribe to frames
+    video_stream_service.subscribe(on_frame)
+
+    # Start streaming if not already
+    if not video_stream_service.is_streaming:
+        await video_stream_service.start_streaming()
+
+    try:
+        while True:
+            try:
+                # Wait for frame with timeout
+                frame_data = await asyncio.wait_for(frame_queue.get(), timeout=1.0)
+
+                # Send frame to client
+                await websocket.send_json(frame_data)
+
+            except asyncio.TimeoutError:
+                # Send keepalive
+                await websocket.send_json({"keepalive": True})
+            except WebSocketDisconnect:
+                break
+
+    except Exception as e:
+        print(f"Video stream WebSocket error: {e}")
+    finally:
+        # Unsubscribe
+        video_stream_service.unsubscribe(on_frame)
+
+        # Stop streaming if no more subscribers
+        if video_stream_service.subscriber_count == 0:
+            await video_stream_service.stop_streaming()

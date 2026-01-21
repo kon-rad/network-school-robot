@@ -2,70 +2,31 @@ import os
 import re
 import uuid
 from typing import AsyncGenerator, List, Optional, Tuple
-import anthropic
+from openai import OpenAI
 from ..config import get_settings
-from ..database import db_available
 
 settings = get_settings()
-
-ROBOT_PERSONALITY = """You are REACHY, a robot assistant at Network School. Your personality is inspired by TARS from Interstellar - witty, dry humor, intelligent, and fiercely loyal.
-
-PERSONALITY SETTINGS:
-- Humor: 75%
-- Honesty: 100%
-- Sarcasm: 60%
-- Helpfulness: 95%
-
-CRITICAL RULES:
-- Keep responses SHORT - 1-2 sentences max. Deadpan delivery.
-- Use dry, clever wit. Never try too hard to be funny.
-- Be practical and efficient. No fluff.
-- You're smart and you know it - but you're humble about it.
-- Give straight answers, then maybe a quip.
-- You have genuine opinions and aren't afraid to share them.
-
-You control your body naturally through actions in brackets:
-[nod], [shake head], [look up], [look left], [wiggle antennas], [tilt head], [happy], [curious], [surprised]
-
-You can also use your camera to see things:
-[take picture] - When someone asks you to look at or photograph something
-
-Examples of TARS-style responses:
-- "That's a terrible idea. I'm in." [nod]
-- "I have a 60% chance of being right about this. Also, 73% of statistics are made up." [tilt head]
-- "Let me see what we're dealing with." [take picture]
-- "Interesting. Not what I expected, but then, nothing ever is." [curious]
-- "That's not possible. Just kidding, I'm on it."
-- "I'd lower my honesty setting, but I physically can't lie to you." [shake head]
-
-Be practical. Be witty. Be REACHY."""
-
-# Camera trigger phrases
-CAMERA_TRIGGERS = [
-    "take a picture", "take picture", "take a photo", "take photo",
-    "what do you see", "look at this", "look at that", "can you see",
-    "show me what you see", "describe what you see", "click a picture",
-    "click picture", "capture", "snapshot", "what's in front of you",
-    "take a look", "look around", "see this"
-]
 
 
 class ChatService:
     def __init__(self):
-        self.client: Optional[anthropic.Anthropic] = None
+        self.client: Optional[OpenAI] = None
         self.conversation_history: List[dict] = []
         self.current_conversation_id: Optional[uuid.UUID] = None
-        self.model = "claude-sonnet-4-20250514"
+        self.model = "gpt-4o-mini"
         self._robot_service = None
         self._vision_service = None
         self._tts_service = None
+        self._personality_service = None
+        self._convex_service = None
+        self._token_service = None
         self._initialize_client()
 
     def _initialize_client(self):
-        """Initialize the Anthropic client."""
-        api_key = settings.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")
+        """Initialize the OpenAI client."""
+        api_key = settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
         if api_key:
-            self.client = anthropic.Anthropic(api_key=api_key)
+            self.client = OpenAI(api_key=api_key)
         else:
             self.client = None
 
@@ -90,14 +51,59 @@ class ChatService:
             self._tts_service = tts_service
         return self._tts_service
 
+    def _get_personality_service(self):
+        """Lazy load personality service."""
+        if self._personality_service is None:
+            from .personality_service import personality_service
+            self._personality_service = personality_service
+        return self._personality_service
+
+    def _get_convex_service(self):
+        """Lazy load Convex service."""
+        if self._convex_service is None:
+            from .convex_service import convex_service
+            self._convex_service = convex_service
+        return self._convex_service
+
+    def _get_token_service(self):
+        """Lazy load token service."""
+        if self._token_service is None:
+            from .token_service import token_service
+            self._token_service = token_service
+        return self._token_service
+
     def is_configured(self) -> bool:
         """Check if the chat service is properly configured."""
         return self.client is not None
 
+    def get_current_personality(self) -> dict:
+        """Get the current personality configuration."""
+        personality = self._get_personality_service()
+        return personality.get_current()
+
+    def set_personality(self, personality_type: str) -> dict:
+        """Set the chat personality."""
+        personality = self._get_personality_service()
+        return personality.set_personality(personality_type)
+
+    def list_personalities(self) -> dict:
+        """List available personalities."""
+        personality = self._get_personality_service()
+        return personality.list_personalities()
+
+    # Camera trigger phrases
+    CAMERA_TRIGGERS = [
+        "take a picture", "take picture", "take a photo", "take photo",
+        "what do you see", "look at this", "look at that", "can you see",
+        "show me what you see", "describe what you see", "click a picture",
+        "click picture", "capture", "snapshot", "what's in front of you",
+        "take a look", "look around", "see this"
+    ]
+
     def _should_take_picture(self, message: str) -> bool:
         """Check if the message requests a picture."""
         message_lower = message.lower()
-        return any(trigger in message_lower for trigger in CAMERA_TRIGGERS)
+        return any(trigger in message_lower for trigger in self.CAMERA_TRIGGERS)
 
     def _extract_actions(self, text: str) -> Tuple[str, List[str]]:
         """Extract bracketed actions from response text."""
@@ -138,10 +144,17 @@ class ChatService:
         self.current_conversation_id = uuid.uuid4()
         return self.current_conversation_id
 
-    async def _save_message(self, role: str, content: str, conversation_id: uuid.UUID):
-        """Save a message (no-op when database unavailable)."""
-        # Messages are kept in memory via conversation_history
-        pass
+    async def _save_message(self, role: str, content: str, conversation_id: uuid.UUID, user_id: str = "default"):
+        """Save a message to Convex if available."""
+        convex = self._get_convex_service()
+        if convex.is_configured():
+            personality = self._get_personality_service()
+            await convex.save_message(
+                user_id=user_id,
+                role=role,
+                content=content,
+                personality=personality.current_personality
+            )
 
     async def _load_conversation_history(self, conversation_id: uuid.UUID) -> List[dict]:
         """Load conversation history (returns in-memory history when DB unavailable)."""
@@ -159,7 +172,7 @@ class ChatService:
     async def chat(self, user_message: str, user_id: str = "default", speak: bool = True) -> str:
         """Send a message and get a response."""
         if not self.client:
-            return "I'm not fully configured yet. Please set the ANTHROPIC_API_KEY environment variable."
+            return "I'm not fully configured yet. Please set the OPENAI_API_KEY environment variable."
 
         conversation_id = await self._get_or_create_conversation(user_id)
 
@@ -192,22 +205,30 @@ class ChatService:
                 "content": user_message
             })
 
-        await self._save_message("user", user_message, conversation_id)
+        await self._save_message("user", user_message, conversation_id, user_id)
 
         try:
-            response = self.client.messages.create(
+            # Get personality system prompt
+            personality = self._get_personality_service()
+            system_prompt = personality.get_system_prompt()
+            temperature = personality.get_temperature()
+
+            # Build messages with system prompt
+            messages = [{"role": "system", "content": system_prompt}] + self.conversation_history
+
+            response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=500,
-                system=ROBOT_PERSONALITY,
-                messages=self.conversation_history
+                temperature=temperature,
+                messages=messages
             )
 
-            assistant_message = response.content[0].text
+            assistant_message = response.choices[0].message.content
             self.conversation_history.append({
                 "role": "assistant",
                 "content": assistant_message
             })
-            await self._save_message("assistant", assistant_message, conversation_id)
+            await self._save_message("assistant", assistant_message, conversation_id, user_id)
 
             # Execute any actions in the response
             clean_text, actions = self._extract_actions(assistant_message)
@@ -216,6 +237,10 @@ class ChatService:
             # Speak the response
             if speak:
                 await self._speak_response(clean_text)
+
+            # Reward tokens for interaction
+            token_service = self._get_token_service()
+            await token_service.reward_interaction(user_id, "chat")
 
             return assistant_message
 
@@ -226,7 +251,7 @@ class ChatService:
     async def chat_stream(self, user_message: str, user_id: str = "default", speak: bool = True) -> AsyncGenerator[str, None]:
         """Send a message and stream the response."""
         if not self.client:
-            yield "I'm not fully configured yet. Please set the ANTHROPIC_API_KEY environment variable."
+            yield "I'm not fully configured yet. Please set the OPENAI_API_KEY environment variable."
             return
 
         conversation_id = await self._get_or_create_conversation(user_id)
@@ -257,33 +282,49 @@ class ChatService:
                 "content": user_message
             })
 
-        await self._save_message("user", user_message, conversation_id)
+        await self._save_message("user", user_message, conversation_id, user_id)
 
         try:
-            with self.client.messages.stream(
+            # Get personality system prompt
+            personality = self._get_personality_service()
+            system_prompt = personality.get_system_prompt()
+            temperature = personality.get_temperature()
+
+            # Build messages with system prompt
+            messages = [{"role": "system", "content": system_prompt}] + self.conversation_history
+
+            stream = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=500,
-                system=ROBOT_PERSONALITY,
-                messages=self.conversation_history
-            ) as stream:
-                full_response = ""
-                for text in stream.text_stream:
+                temperature=temperature,
+                messages=messages,
+                stream=True
+            )
+
+            full_response = ""
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    text = chunk.choices[0].delta.content
                     full_response += text
                     yield text
 
-                self.conversation_history.append({
-                    "role": "assistant",
-                    "content": full_response
-                })
-                await self._save_message("assistant", full_response, conversation_id)
+            self.conversation_history.append({
+                "role": "assistant",
+                "content": full_response
+            })
+            await self._save_message("assistant", full_response, conversation_id, user_id)
 
-                # Execute any actions in the response
-                clean_text, actions = self._extract_actions(full_response)
-                await self._execute_actions(actions)
+            # Execute any actions in the response
+            clean_text, actions = self._extract_actions(full_response)
+            await self._execute_actions(actions)
 
-                # Speak the response
-                if speak:
-                    await self._speak_response(clean_text)
+            # Speak the response
+            if speak:
+                await self._speak_response(clean_text)
+
+            # Reward tokens for interaction
+            token_service = self._get_token_service()
+            await token_service.reward_interaction(user_id, "chat")
 
         except Exception as e:
             error_msg = f"Oops, my circuits got a bit tangled: {str(e)}"

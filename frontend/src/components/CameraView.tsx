@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+const WS_BASE = API_BASE.replace('http', 'ws');
 
 interface CaptureResult {
   success: boolean;
@@ -9,78 +10,116 @@ interface CaptureResult {
   format?: string;
 }
 
+interface StreamFrame {
+  image_base64?: string;
+  format?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
+  keepalive?: boolean;
+  error?: string;
+}
+
 export function CameraView() {
-  const [currentFrame, setCurrentFrame] = useState<CaptureResult | null>(null);
+  const [currentFrame, setCurrentFrame] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<CaptureResult | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fps, setFps] = useState(0);
-  const streamIntervalRef = useRef<number | null>(null);
-  const frameCountRef = useRef(0);
-  const fpsIntervalRef = useRef<number | null>(null);
-
-  const fetchFrame = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/robot/camera/capture`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch frame');
-      }
-
-      const result: CaptureResult = await response.json();
-      if (result.success && result.image_base64) {
-        setCurrentFrame(result);
-        setError(null);
-        frameCountRef.current++;
-      }
-    } catch (err) {
-      // Don't show errors during streaming to avoid spam
-      console.error('Frame fetch error:', err);
-    }
-  }, []);
-
-  const startStreaming = useCallback(() => {
-    if (streamIntervalRef.current) return;
-
-    setIsStreaming(true);
-    setError(null);
-    frameCountRef.current = 0;
-
-    // Fetch frames at ~5 FPS (200ms interval)
-    streamIntervalRef.current = window.setInterval(fetchFrame, 200);
-
-    // Calculate FPS every second
-    fpsIntervalRef.current = window.setInterval(() => {
-      setFps(frameCountRef.current);
-      frameCountRef.current = 0;
-    }, 1000);
-
-    // Fetch first frame immediately
-    fetchFrame();
-  }, [fetchFrame]);
-
-  const stopStreaming = useCallback(() => {
-    if (streamIntervalRef.current) {
-      clearInterval(streamIntervalRef.current);
-      streamIntervalRef.current = null;
-    }
-    if (fpsIntervalRef.current) {
-      clearInterval(fpsIntervalRef.current);
-      fpsIntervalRef.current = null;
-    }
-    setIsStreaming(false);
-    setFps(0);
-  }, []);
+  const [resolution, setResolution] = useState<string>('');
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopStreaming();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
-  }, [stopStreaming]);
+  }, []);
+
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    console.log('Connecting to video stream:', `${WS_BASE}/api/robot/video-stream/ws`);
+    const ws = new WebSocket(`${WS_BASE}/api/robot/video-stream/ws`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setIsStreaming(true);
+      setError(null);
+      console.log('Video stream connected');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data: StreamFrame = JSON.parse(event.data);
+
+        if (data.keepalive) {
+          return;
+        }
+
+        if (data.error) {
+          setError(data.error);
+          setFps(0);
+          return;
+        }
+
+        if (data.image_base64) {
+          setCurrentFrame(`data:image/${data.format || 'jpeg'};base64,${data.image_base64}`);
+          setError(null);
+
+          if (data.fps !== undefined) {
+            setFps(data.fps);
+          }
+
+          if (data.width && data.height) {
+            setResolution(`${data.width}×${data.height}`);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse frame:', e);
+      }
+    };
+
+    ws.onerror = (e) => {
+      console.error('WebSocket error:', e);
+      setError('Stream connection error - check if robot is connected');
+    };
+
+    ws.onclose = (event) => {
+      console.log('WebSocket closed:', event.code, event.reason);
+      setIsStreaming(false);
+      wsRef.current = null;
+    };
+  }, []);
+
+  const startStreaming = useCallback(() => {
+    setError(null);
+    connectWebSocket();
+  }, [connectWebSocket]);
+
+  const stopStreaming = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    setIsStreaming(false);
+    setFps(0);
+  }, []);
 
   const captureImage = useCallback(async () => {
     setIsCapturing(true);
@@ -111,18 +150,29 @@ export function CameraView() {
     }
   }, []);
 
-  const downloadImage = useCallback((imageData: CaptureResult) => {
-    if (!imageData.image_base64) return;
+  const downloadImage = useCallback((imageData: CaptureResult | string) => {
+    let href: string;
+    let filename: string;
+
+    if (typeof imageData === 'string') {
+      href = imageData;
+      filename = `robot-capture-${Date.now()}.jpg`;
+    } else if (imageData.image_base64) {
+      href = `data:image/${imageData.format || 'jpeg'};base64,${imageData.image_base64}`;
+      filename = `robot-capture-${Date.now()}.${imageData.format || 'jpg'}`;
+    } else {
+      return;
+    }
 
     const link = document.createElement('a');
-    link.href = `data:image/${imageData.format || 'jpeg'};base64,${imageData.image_base64}`;
-    link.download = `robot-capture-${Date.now()}.${imageData.format || 'jpg'}`;
+    link.href = href;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }, []);
 
-  const displayFrame = currentFrame || capturedImage;
+  const displayFrame = currentFrame || (capturedImage?.image_base64 ? `data:image/${capturedImage.format || 'jpeg'};base64,${capturedImage.image_base64}` : null);
 
   return (
     <div className="card">
@@ -139,7 +189,7 @@ export function CameraView() {
               {isStreaming ? (
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  Live • {fps} FPS
+                  Live • {fps} FPS {resolution && `• ${resolution}`}
                 </span>
               ) : (
                 'View live feed or capture images'
@@ -207,11 +257,11 @@ export function CameraView() {
           </div>
         )}
 
-        {displayFrame?.success && displayFrame.image_base64 ? (
+        {displayFrame ? (
           <div className="space-y-4">
             <div className="relative rounded-lg overflow-hidden border border-[var(--border-default)] bg-black">
               <img
-                src={`data:image/${displayFrame.format || 'jpeg'};base64,${displayFrame.image_base64}`}
+                src={displayFrame}
                 alt="Robot camera view"
                 className="w-full"
               />
@@ -219,6 +269,11 @@ export function CameraView() {
                 <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
                   <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                   LIVE
+                </div>
+              )}
+              {isStreaming && fps > 0 && (
+                <div className="absolute top-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                  {fps} FPS
                 </div>
               )}
             </div>
@@ -229,9 +284,9 @@ export function CameraView() {
                 {isStreaming ? 'Streaming live from robot camera' : capturedImage ? 'Captured image' : 'Last frame'}
               </p>
               <div className="flex gap-2">
-                {displayFrame.image_base64 && (
+                {displayFrame && (
                   <button
-                    onClick={() => downloadImage(displayFrame)}
+                    onClick={() => currentFrame ? downloadImage(currentFrame) : capturedImage && downloadImage(capturedImage)}
                     className="text-xs text-[var(--accent-primary)] hover:underline flex items-center gap-1"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -254,7 +309,7 @@ export function CameraView() {
         )}
 
         {/* Captured Image Gallery (when we have a separate capture while streaming) */}
-        {capturedImage && currentFrame && capturedImage !== currentFrame && (
+        {capturedImage && currentFrame && (
           <div className="mt-4 pt-4 border-t border-[var(--border-default)]">
             <p className="text-xs text-[var(--text-secondary)] mb-2">Captured Image</p>
             <div className="flex items-start gap-4">

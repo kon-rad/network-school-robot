@@ -1,0 +1,29 @@
+[
+  {
+    "id": "c147891b-a740-4de0-9fcf-5567ea07679c",
+    "user_id": "test_user",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Testing",
+    "timestamp": "2026-01-20T23:00:51.107978"
+  },
+  {
+    "id": "bca5751d-4d64-452c-973b-f7d147953847",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-01-20T23:05:56.820700"
+  },
+  {
+    "id": "bf78e5b7-194b-4241-b29d-073dc8ccd367",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-01-20T23:28:02.742888"
+  }
+]

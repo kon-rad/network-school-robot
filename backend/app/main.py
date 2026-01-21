@@ -5,6 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .database import init_db
 from .routers import robot_router, logs_router, chat_router, voice_control_router
+from .routers.recognition import router as recognition_router
+from .routers.personality import router as personality_router
+from .routers.tokens import router as tokens_router
+from .routers.storage import router as storage_router
 from .services.robot_service import robot_service
 from .services.voice_tracking_service import voice_tracking_service
 from .services.voice_control_service import voice_control_service
@@ -47,6 +51,10 @@ app.include_router(robot_router)
 app.include_router(logs_router)
 app.include_router(chat_router)
 app.include_router(voice_control_router)
+app.include_router(recognition_router)
+app.include_router(personality_router)
+app.include_router(tokens_router)
+app.include_router(storage_router)
 
 
 @app.get("/")

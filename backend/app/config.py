@@ -9,9 +9,24 @@ class Settings(BaseSettings):
     robot_auto_connect: bool = True
     robot_auto_execute_actions: bool = True
     anthropic_api_key: str = ""
+    openai_api_key: str = ""
     deepgram_api_key: str = ""
+    elevenlabs_api_key: str = ""
+    gemini_api_key: str = ""
     robot_voice_enabled: bool = True
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
+
+    # Convex Settings
+    convex_url: str = ""
+
+    # AWS S3 Settings
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "us-east-1"
+    aws_s3_bucket: str = ""
+
+    # Personality Settings
+    default_personality: str = "tars"
 
     # Voice Control Settings
     voice_control_enabled: bool = True

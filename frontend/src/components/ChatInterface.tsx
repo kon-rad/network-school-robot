@@ -148,7 +148,7 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
           </div>
           <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">Chat Not Configured</h3>
           <p className="text-sm text-[var(--text-secondary)] mb-4">
-            Set the <code className="text-[var(--accent-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-xs">ANTHROPIC_API_KEY</code> environment variable to enable the chat feature.
+            Set the <code className="text-[var(--accent-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-xs">OPENAI_API_KEY</code> environment variable to enable the chat feature.
           </p>
         </div>
       </div>
@@ -168,7 +168,7 @@ export function ChatInterface({ onAction }: ChatInterfaceProps) {
           <div>
             <h2 className="font-medium text-[var(--text-primary)]">Chat with Reachy</h2>
             <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
-              <span>Powered by Claude</span>
+              <span>Powered by OpenAI</span>
               <span className={`inline-flex items-center gap-1 ${robotConnected ? 'text-[var(--success)]' : 'text-[var(--text-tertiary)]'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${robotConnected ? 'bg-[var(--success)]' : 'bg-[var(--text-tertiary)]'}`} />
                 {robotConnected ? 'Robot connected' : 'Robot offline'}

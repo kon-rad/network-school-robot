@@ -25,5 +25,41 @@
     "amount": 1,
     "reason": "Interaction: chat",
     "timestamp": "2026-01-20T23:28:02.742888"
+  },
+  {
+    "id": "1118f1ef-b902-4db6-ad08-31a258a96352",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-01-26T21:35:28.778555"
+  },
+  {
+    "id": "45c2d02e-573a-45db-8038-b5db127c2105",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-01-26T21:35:53.523544"
+  },
+  {
+    "id": "aef07d6a-06c4-4f7c-ad35-27cbbd02e08f",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-01-26T21:38:42.274950"
+  },
+  {
+    "id": "db382c8e-4dee-402b-8107-1fd795574160",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-01-26T21:39:22.139032"
   }
 ]

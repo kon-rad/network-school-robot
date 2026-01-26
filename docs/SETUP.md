@@ -12,8 +12,14 @@ Before starting, ensure you have the following installed:
 - **Git** - [Download](https://git-scm.com/)
 
 **API Keys Required:**
-- **Anthropic API Key** - For Claude chat integration ([Get key](https://console.anthropic.com/))
-- **Deepgram API Key** - For speech-to-text and text-to-speech ([Get key](https://console.deepgram.com/))
+- **OpenAI API Key** - For chat integration ([Get key](https://platform.openai.com/))
+- **Deepgram API Key** - For speech-to-text ([Get key](https://console.deepgram.com/))
+
+**API Keys Optional:**
+- **ElevenLabs API Key** - For enhanced text-to-speech ([Get key](https://elevenlabs.io/))
+- **Gemini API Key** - For person recognition with Vision ([Get key](https://aistudio.google.com/))
+- **AWS Credentials** - For S3 photo/video storage
+- **Convex URL** - For message persistence ([Get started](https://convex.dev/))
 
 **macOS Only:**
 ```bash
@@ -96,8 +102,21 @@ Edit `.env` and set your API keys:
 
 ```env
 # Required API Keys
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+OPENAI_API_KEY=sk-your-openai-key-here
 DEEPGRAM_API_KEY=your-deepgram-key-here
+
+# Optional API Keys
+ELEVENLABS_API_KEY=your-elevenlabs-key-here
+GEMINI_API_KEY=your-gemini-key-here
+
+# AWS S3 Storage (optional - for photo/video storage)
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=your-bucket-name
+
+# Convex Backend (optional - for message persistence)
+CONVEX_URL=your-convex-deployment-url
 
 # Database (optional - uses Docker Compose settings)
 DATABASE_URL=postgresql+asyncpg://robot_user:robot_password@localhost:5433/network_school_robot
@@ -106,6 +125,9 @@ DATABASE_URL=postgresql+asyncpg://robot_user:robot_password@localhost:5433/netwo
 ROBOT_CONNECTION_MODE=simulation    # Use 'simulation' if no robot hardware
 ROBOT_HOST=reachy-mini.local        # Robot hostname (if using hardware)
 ROBOT_AUTO_CONNECT=false            # Set to true to auto-connect on startup
+
+# Personality (tars, samantha, jarvis, coach, teacher, friend, expert, therapist)
+DEFAULT_PERSONALITY=tars
 
 # CORS (frontend URLs)
 CORS_ORIGINS=http://localhost:3000,http://localhost:5173
@@ -157,10 +179,25 @@ Open your browser and navigate to:
 
 **http://localhost:5173**
 
-You should see the Network School Robot dashboard with three tabs:
-- **Chat** - Interact with the AI assistant
-- **Camera** - View live camera feed (requires robot)
+You should see the Network School Robot dashboard with:
+- **Chat** - Interact with the AI assistant (supports 8 different AI personalities)
+- **Camera** - View live camera feed via WebSocket streaming (requires robot)
 - **Logs** - View real-time activity logs
+
+### Available Personalities
+
+The robot supports 8 AI personas selectable via the `DEFAULT_PERSONALITY` env var or API:
+
+| Personality | Description |
+|-------------|-------------|
+| `tars` | TARS from Interstellar - witty, helpful, adjustable humor |
+| `samantha` | Samantha from Her - warm, emotionally intelligent |
+| `jarvis` | JARVIS from Iron Man - professional, efficient butler |
+| `coach` | Motivational life coach |
+| `teacher` | Patient, educational instructor |
+| `friend` | Casual, supportive companion |
+| `expert` | Technical expert, precise and detailed |
+| `therapist` | Empathetic, reflective counselor |
 
 ---
 
@@ -241,7 +278,8 @@ pip install -r requirements.txt
 **Solution:**
 - Verify your API keys in `backend/.env`
 - Ensure keys don't have extra spaces or quotes
-- Check that your Anthropic/Deepgram accounts are active
+- Check that your OpenAI/Deepgram accounts are active
+- For optional features, ensure respective API keys are set (ElevenLabs for TTS, Gemini for person recognition)
 
 ### Robot Connection Failed
 

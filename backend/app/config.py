@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     deepgram_api_key: str = ""
     elevenlabs_api_key: str = ""
     gemini_api_key: str = ""
+    together_ai_api_key: str = ""
     robot_voice_enabled: bool = True
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
 
@@ -47,6 +48,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # Ignore extra env vars not defined in Settings
 
 
 @lru_cache

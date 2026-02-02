@@ -215,6 +215,56 @@ The robot supports 8 AI personas selectable via the `DEFAULT_PERSONALITY` env va
 
 If you have a Reachy Mini robot:
 
+### Connecting to the Robot
+
+#### Scenario A: Robot Already Configured (Most Common)
+
+If you've used the robot before, it may already be on your WiFi network:
+
+```bash
+# 1. Check if robot is reachable
+ping reachy-mini.local
+
+# 2. If reachable, check daemon status
+curl http://reachy-mini.local:8000/api/daemon/status
+
+# 3. If state is "not_initialized", start the daemon
+curl -X POST "http://reachy-mini.local:8000/api/daemon/start?wake_up=true"
+
+# 4. Wait 5-10 seconds, then verify it's running
+curl http://reachy-mini.local:8000/api/daemon/status
+# Should show: "state": "running"
+```
+
+#### Scenario B: First-Time Setup (WiFi Access Point)
+
+If the robot is brand new or was factory reset:
+
+1. **Power on the robot** via USB-C (green light = power on)
+2. **Wait 1-2 minutes** for full boot
+3. **Look for WiFi network:** `reachy-mini-ap`
+4. **Connect with password:** `reachy-mini`
+5. **Open browser:** http://reachy-mini.local:8000/settings
+6. **Enter your WiFi credentials** and click Connect
+7. **Switch your computer** to the same WiFi network
+8. **Verify connection:** `ping reachy-mini.local`
+
+> **Note:** The `reachy-mini-ap` access point disappears once the robot connects to your WiFi.
+
+#### Scenario C: Robot Not Found
+
+If ping fails and no `reachy-mini-ap` WiFi is visible:
+
+```bash
+# 1. Check your router's DHCP client list for a device named "reachy-mini"
+
+# 2. If you find the IP (e.g., 192.168.1.28), add to hosts file:
+echo "192.168.1.28 reachy-mini.local reachy-mini" | sudo tee -a /etc/hosts
+
+# 3. Or use the IP directly in your .env:
+ROBOT_HOST=192.168.1.28
+```
+
 ### Configure Connection Mode
 
 Edit `backend/.env`:
@@ -226,9 +276,34 @@ Edit `backend/.env`:
 # - network: Connect via network hostname
 # - simulation: No hardware (mock responses)
 
-ROBOT_CONNECTION_MODE=auto
-ROBOT_HOST=reachy-mini.local
+ROBOT_CONNECTION_MODE=network
+ROBOT_HOST=reachy-mini.local  # or use IP: 192.168.1.28
 ROBOT_AUTO_CONNECT=true
+```
+
+### Quick Robot Commands Reference
+
+```bash
+# Check daemon status
+curl http://reachy-mini.local:8000/api/daemon/status
+
+# Start daemon (with wake up animation)
+curl -X POST "http://reachy-mini.local:8000/api/daemon/start?wake_up=true"
+
+# Restart daemon
+curl -X POST http://reachy-mini.local:8000/api/daemon/restart
+
+# Enable motors
+curl -X POST http://reachy-mini.local:8000/api/motors/set_mode/enabled
+
+# Play wake up animation
+curl -X POST http://reachy-mini.local:8000/api/move/play/wake_up
+
+# Sleep animation
+curl -X POST http://reachy-mini.local:8000/api/move/play/goto_sleep
+
+# Check current app running
+curl http://reachy-mini.local:8000/api/apps/current-app-status
 ```
 
 ### macOS GStreamer Setup
@@ -289,6 +364,37 @@ pip install -r requirements.txt
 1. Set `ROBOT_CONNECTION_MODE=simulation` to run without hardware
 2. If using hardware, ensure the robot is powered on and on the same network
 3. Verify `ROBOT_HOST` matches your robot's hostname
+
+### Robot Found But Not Responding
+
+**Error:** Robot pingable but API calls fail or motors won't move
+
+**Solution:**
+```bash
+# 1. Check daemon status
+curl http://reachy-mini.local:8000/api/daemon/status
+
+# If state is "not_initialized":
+curl -X POST "http://reachy-mini.local:8000/api/daemon/start?wake_up=true"
+
+# If backend_status.ready is false, wait 10 seconds and check again
+
+# 2. Enable motors if needed
+curl -X POST http://reachy-mini.local:8000/api/motors/set_mode/enabled
+
+# 3. Try wake up animation to verify
+curl -X POST http://reachy-mini.local:8000/api/move/play/wake_up
+```
+
+### Can't Find Robot WiFi (reachy-mini-ap)
+
+**Problem:** Robot powered on but no `reachy-mini-ap` WiFi network appears
+
+**Solution:**
+1. **Robot already configured:** Try `ping reachy-mini.local` - it may already be on your network
+2. **Not booted yet:** Wait 2 minutes after power on for full boot
+3. **Check router:** Look in your router's DHCP list for "reachy-mini"
+4. **Factory reset:** If needed, SSH into robot and reset WiFi settings (see REACHY_MINI_SETUP.md)
 
 ### Frontend Can't Connect to Backend
 

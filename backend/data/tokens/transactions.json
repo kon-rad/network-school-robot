@@ -61,5 +61,68 @@
     "amount": 1,
     "reason": "Interaction: chat",
     "timestamp": "2026-01-26T21:39:22.139032"
+  },
+  {
+    "id": "c725f3f3-dfaa-42a1-8056-fa6b755886b6",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-02-02T21:42:06.426788"
+  },
+  {
+    "id": "fa501871-a9c0-49fc-9108-d3cc344d3fd9",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-02-02T21:42:38.144747"
+  },
+  {
+    "id": "c9fc8f84-3979-42f9-b97e-dc272c043585",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-02-02T21:45:35.333975"
+  },
+  {
+    "id": "6331ec0f-648a-4ce6-b0f3-afc46aa02b97",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-02-02T21:45:48.919344"
+  },
+  {
+    "id": "1c2f6e97-75b3-4dad-80b7-b8fa53befc0a",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-02-02T21:46:39.275662"
+  },
+  {
+    "id": "1e57ac3a-1c3a-491b-9d04-6af6f0b70d1c",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-02-02T22:02:13.447640"
+  },
+  {
+    "id": "478870eb-a331-4e83-81ba-b4c9fc315f8c",
+    "user_id": "default",
+    "type": "mint",
+    "token_type": "interaction",
+    "amount": 1,
+    "reason": "Interaction: chat",
+    "timestamp": "2026-02-02T22:02:43.603960"
   }
 ]

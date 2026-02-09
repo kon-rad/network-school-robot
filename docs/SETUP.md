@@ -6,25 +6,43 @@ Step-by-step instructions to run the Network School Robot application locally.
 
 Before starting, ensure you have the following installed:
 
-- **Python 3.11+** - [Download](https://www.python.org/downloads/)
+- **Python 3.13** (required — Python 3.14 does not have pre-built wheels for scipy/reachy-mini)
+  - Install via Homebrew: `brew install python@3.13`
 - **Node.js 18+** - [Download](https://nodejs.org/)
 - **Docker & Docker Compose** - [Download](https://www.docker.com/products/docker-desktop/)
 - **Git** - [Download](https://git-scm.com/)
+
+**macOS Only (GStreamer for audio/video):**
+```bash
+brew install gstreamer gst-plugins-base gst-plugins-good
+```
 
 **API Keys Required:**
 - **OpenAI API Key** - For chat integration ([Get key](https://platform.openai.com/))
 - **Deepgram API Key** - For speech-to-text ([Get key](https://console.deepgram.com/))
 
 **API Keys Optional:**
+- **Anthropic API Key** - For Claude-powered chat and vision ([Get key](https://console.anthropic.com/))
 - **ElevenLabs API Key** - For enhanced text-to-speech ([Get key](https://elevenlabs.io/))
 - **Gemini API Key** - For person recognition with Vision ([Get key](https://aistudio.google.com/))
+- **Together AI API Key** - For additional AI models
 - **AWS Credentials** - For S3 photo/video storage
 - **Convex URL** - For message persistence ([Get started](https://convex.dev/))
 
-**macOS Only:**
-```bash
-brew install gstreamer gst-plugins-base gst-plugins-good
-```
+---
+
+## Reachy Mini Hardware Versions
+
+This project supports both Reachy Mini models:
+
+| Version | Price | Connection | Compute | Has Onboard Server? |
+|---------|-------|------------|---------|---------------------|
+| **Reachy Mini Lite** | $299 | USB-C to your computer | Your machine | No |
+| **Reachy Mini Wireless** | $449 | WiFi/Ethernet + USB-C | Internal Raspberry Pi 4 | Yes (port 8000) |
+
+**Key difference:** The Lite has no onboard computer — your machine controls everything directly via USB serial. The Wireless has a Raspberry Pi that runs a daemon and web server at `reachy-mini.local:8000`.
+
+For detailed robot connection instructions, see [GETTING_STARTED.md](../GETTING_STARTED.md).
 
 ---
 
@@ -37,9 +55,11 @@ For experienced developers:
 docker-compose up -d
 
 # 2. Backend
-cd backend && python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt && cp .env.example .env
-# Edit .env with your API keys
+cd backend
+python3.13 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your API keys and robot connection mode
 ./start.sh
 
 # 3. Frontend (new terminal)
@@ -64,7 +84,7 @@ Verify the database is running:
 docker-compose ps
 ```
 
-You should see the `postgres` container with status `Up`.
+You should see the `network-school-robot-db` container with status `Up`.
 
 > **Note:** The database is optional. The application will work without it but won't persist logs or conversation history.
 
@@ -74,16 +94,16 @@ You should see the `postgres` container with status `Up`.
 
 ### 2.1 Create Virtual Environment
 
+**Important:** Use Python 3.13 specifically. Python 3.14 will fail building scipy.
+
 ```bash
 cd backend
 
-# Create virtual environment
-python -m venv venv
+# Create virtual environment with Python 3.13
+python3.13 -m venv venv
 
 # Activate it
 source venv/bin/activate  # macOS/Linux
-# or
-venv\Scripts\activate     # Windows
 ```
 
 ### 2.2 Install Dependencies
@@ -106,8 +126,10 @@ OPENAI_API_KEY=sk-your-openai-key-here
 DEEPGRAM_API_KEY=your-deepgram-key-here
 
 # Optional API Keys
+ANTHROPIC_API_KEY=your-anthropic-key-here
 ELEVENLABS_API_KEY=your-elevenlabs-key-here
 GEMINI_API_KEY=your-gemini-key-here
+TOGETHER_AI_API_KEY=your-together-ai-key-here
 
 # AWS S3 Storage (optional - for photo/video storage)
 AWS_ACCESS_KEY_ID=your-aws-access-key
@@ -118,13 +140,13 @@ AWS_S3_BUCKET=your-bucket-name
 # Convex Backend (optional - for message persistence)
 CONVEX_URL=your-convex-deployment-url
 
-# Database (optional - uses Docker Compose settings)
+# Database (uses Docker Compose settings)
 DATABASE_URL=postgresql+asyncpg://robot_user:robot_password@localhost:5433/network_school_robot
 
-# Robot Configuration
-ROBOT_CONNECTION_MODE=simulation    # Use 'simulation' if no robot hardware
+# Robot Configuration (see GETTING_STARTED.md for details)
+ROBOT_CONNECTION_MODE=simulation    # Options: usb, network, auto, localhost_only, simulation
 ROBOT_HOST=reachy-mini.local        # Robot hostname (if using hardware)
-ROBOT_AUTO_CONNECT=false            # Set to true to auto-connect on startup
+ROBOT_AUTO_CONNECT=true
 
 # Personality (tars, samantha, jarvis, coach, teacher, friend, expert, therapist)
 DEFAULT_PERSONALITY=tars
@@ -146,6 +168,12 @@ VOICE_CONTROL_AUTO_START=false
 Or manually:
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+The `start.sh` script automatically sets up GStreamer paths for macOS. If running manually:
+```bash
+export GST_PLUGIN_PATH="/opt/homebrew/lib/gstreamer-1.0"
+export DYLD_LIBRARY_PATH="/opt/homebrew/lib:$DYLD_LIBRARY_PATH"
 ```
 
 The API will be available at `http://localhost:8000`.
@@ -211,113 +239,23 @@ The robot supports 8 AI personas selectable via the `DEFAULT_PERSONALITY` env va
 
 ---
 
-## Running with Robot Hardware (Optional)
-
-If you have a Reachy Mini robot:
-
-### Connecting to the Robot
-
-#### Scenario A: Robot Already Configured (Most Common)
-
-If you've used the robot before, it may already be on your WiFi network:
-
-```bash
-# 1. Check if robot is reachable
-ping reachy-mini.local
-
-# 2. If reachable, check daemon status
-curl http://reachy-mini.local:8000/api/daemon/status
-
-# 3. If state is "not_initialized", start the daemon
-curl -X POST "http://reachy-mini.local:8000/api/daemon/start?wake_up=true"
-
-# 4. Wait 5-10 seconds, then verify it's running
-curl http://reachy-mini.local:8000/api/daemon/status
-# Should show: "state": "running"
-```
-
-#### Scenario B: First-Time Setup (WiFi Access Point)
-
-If the robot is brand new or was factory reset:
-
-1. **Power on the robot** via USB-C (green light = power on)
-2. **Wait 1-2 minutes** for full boot
-3. **Look for WiFi network:** `reachy-mini-ap`
-4. **Connect with password:** `reachy-mini`
-5. **Open browser:** http://reachy-mini.local:8000/settings
-6. **Enter your WiFi credentials** and click Connect
-7. **Switch your computer** to the same WiFi network
-8. **Verify connection:** `ping reachy-mini.local`
-
-> **Note:** The `reachy-mini-ap` access point disappears once the robot connects to your WiFi.
-
-#### Scenario C: Robot Not Found
-
-If ping fails and no `reachy-mini-ap` WiFi is visible:
-
-```bash
-# 1. Check your router's DHCP client list for a device named "reachy-mini"
-
-# 2. If you find the IP (e.g., 192.168.1.28), add to hosts file:
-echo "192.168.1.28 reachy-mini.local reachy-mini" | sudo tee -a /etc/hosts
-
-# 3. Or use the IP directly in your .env:
-ROBOT_HOST=192.168.1.28
-```
-
-### Configure Connection Mode
-
-Edit `backend/.env`:
-
-```env
-# Connection modes:
-# - auto: Try localhost first, then network
-# - localhost_only: Only connect via localhost
-# - network: Connect via network hostname
-# - simulation: No hardware (mock responses)
-
-ROBOT_CONNECTION_MODE=network
-ROBOT_HOST=reachy-mini.local  # or use IP: 192.168.1.28
-ROBOT_AUTO_CONNECT=true
-```
-
-### Quick Robot Commands Reference
-
-```bash
-# Check daemon status
-curl http://reachy-mini.local:8000/api/daemon/status
-
-# Start daemon (with wake up animation)
-curl -X POST "http://reachy-mini.local:8000/api/daemon/start?wake_up=true"
-
-# Restart daemon
-curl -X POST http://reachy-mini.local:8000/api/daemon/restart
-
-# Enable motors
-curl -X POST http://reachy-mini.local:8000/api/motors/set_mode/enabled
-
-# Play wake up animation
-curl -X POST http://reachy-mini.local:8000/api/move/play/wake_up
-
-# Sleep animation
-curl -X POST http://reachy-mini.local:8000/api/move/play/goto_sleep
-
-# Check current app running
-curl http://reachy-mini.local:8000/api/apps/current-app-status
-```
-
-### macOS GStreamer Setup
-
-The `start.sh` script automatically configures GStreamer paths. If running manually:
-
-```bash
-export GST_PLUGIN_PATH="/opt/homebrew/lib/gstreamer-1.0"
-export DYLD_LIBRARY_PATH="/opt/homebrew/lib:$DYLD_LIBRARY_PATH"
-```
-
----
-
 ## Troubleshooting
+
+### scipy / reachy-mini Install Fails
+
+**Error:** `Dependency "OpenBLAS" not found` or `metadata-generation-failed` for scipy
+
+**Cause:** You're using Python 3.14 which lacks pre-built scipy wheels.
+
+**Solution:**
+```bash
+# Recreate venv with Python 3.13
+deactivate
+rm -rf venv
+python3.13 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 ### Database Connection Error
 
@@ -325,11 +263,8 @@ export DYLD_LIBRARY_PATH="/opt/homebrew/lib:$DYLD_LIBRARY_PATH"
 
 **Solution:**
 ```bash
-# Restart the database
 docker-compose down
 docker-compose up -d
-
-# Check logs
 docker-compose logs postgres
 ```
 
@@ -339,10 +274,7 @@ docker-compose logs postgres
 
 **Solution:**
 ```bash
-# Ensure virtual environment is activated
 source venv/bin/activate
-
-# Reinstall dependencies
 pip install -r requirements.txt
 ```
 
@@ -354,7 +286,6 @@ pip install -r requirements.txt
 - Verify your API keys in `backend/.env`
 - Ensure keys don't have extra spaces or quotes
 - Check that your OpenAI/Deepgram accounts are active
-- For optional features, ensure respective API keys are set (ElevenLabs for TTS, Gemini for person recognition)
 
 ### Robot Connection Failed
 
@@ -362,39 +293,7 @@ pip install -r requirements.txt
 
 **Solution:**
 1. Set `ROBOT_CONNECTION_MODE=simulation` to run without hardware
-2. If using hardware, ensure the robot is powered on and on the same network
-3. Verify `ROBOT_HOST` matches your robot's hostname
-
-### Robot Found But Not Responding
-
-**Error:** Robot pingable but API calls fail or motors won't move
-
-**Solution:**
-```bash
-# 1. Check daemon status
-curl http://reachy-mini.local:8000/api/daemon/status
-
-# If state is "not_initialized":
-curl -X POST "http://reachy-mini.local:8000/api/daemon/start?wake_up=true"
-
-# If backend_status.ready is false, wait 10 seconds and check again
-
-# 2. Enable motors if needed
-curl -X POST http://reachy-mini.local:8000/api/motors/set_mode/enabled
-
-# 3. Try wake up animation to verify
-curl -X POST http://reachy-mini.local:8000/api/move/play/wake_up
-```
-
-### Can't Find Robot WiFi (reachy-mini-ap)
-
-**Problem:** Robot powered on but no `reachy-mini-ap` WiFi network appears
-
-**Solution:**
-1. **Robot already configured:** Try `ping reachy-mini.local` - it may already be on your network
-2. **Not booted yet:** Wait 2 minutes after power on for full boot
-3. **Check router:** Look in your router's DHCP list for "reachy-mini"
-4. **Factory reset:** If needed, SSH into robot and reset WiFi settings (see REACHY_MINI_SETUP.md)
+2. If using hardware, see [GETTING_STARTED.md](../GETTING_STARTED.md) for connection steps
 
 ### Frontend Can't Connect to Backend
 
@@ -409,6 +308,7 @@ curl -X POST http://reachy-mini.local:8000/api/move/play/wake_up
 
 ## Next Steps
 
+- Read [GETTING_STARTED.md](../GETTING_STARTED.md) for robot hardware connection
 - Read the [Architecture Documentation](./ARCHITECTURE.md) to understand the system design
 - Check the [Changelog](./CHANGELOG.md) for recent updates
 - Explore the API at `http://localhost:8000/docs` (Swagger UI)
